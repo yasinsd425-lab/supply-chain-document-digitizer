@@ -1,0 +1,12 @@
+streamlit
+pandas
+easyocr
+pdf2image
+groq
+plotly
+xlsxwriter
+pypdf
+opencv-python-headless
+numpy
+torch --extra-index-url https://download.pytorch.org/whl/cpu
+torchvision --extra-index-url https://download.pytorch.org/whl/cpu
