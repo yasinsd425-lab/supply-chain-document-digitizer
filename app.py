@@ -1,6 +1,6 @@
 import os
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
-
+import platform
 import streamlit as st
 import pandas as pd
 import json
@@ -40,8 +40,8 @@ def load_ocr():
     return easyocr.Reader(['en'])
 
 def extract_text_smart(file_bytes):
-    """موتور هوشمند: اول تلاش برای خواندن سریع، اگر نشد اسکن دقیق"""
-    # 1. تلاش سریع (Fast Path)
+    """موتور هوشمند: سازگار با ویندوز (لوکال) و لینوکس (سرور)"""
+    # 1. تلاش سریع (Fast Path - Digital Read)
     try:
         pdf_reader = pypdf.PdfReader(io.BytesIO(file_bytes))
         text = ""
@@ -52,43 +52,27 @@ def extract_text_smart(file_bytes):
     except:
         pass
 
-    # 2. تلاش دقیق (OCR Path)
-    poppler_bin = r"C:\Users\Yasin\Downloads\Release-25.12.0-0\poppler-25.12.0\Library\bin"
-    reader = load_ocr()
-    images = convert_from_bytes(file_bytes, poppler_path=poppler_bin)
-    full_text = ""
-    for img in images:
-        img_np = np.array(img)
-        result = reader.readtext(img_np, detail=0)
-        full_text += " ".join(result) + "\n"
-    return full_text, "🔍 OCR Scan (Deep)"
+    # 2. تعیین مسیر Poppler بر اساس سیستم عامل
+    if platform.system() == "Windows":
+        # مسیر لپ‌تاپ تو (فقط روی ویندوز استفاده می‌شود)
+        poppler_path = r"C:\Users\Yasin\Downloads\Release-25.12.0-0\poppler-25.12.0\Library\bin"
+    else:
+        # روی سرور لینوکس، این باید None باشد تا از packages.txt استفاده کند
+        poppler_path = None
 
-def analyze_with_groq(text, api_key):
+    # 3. تلاش دقیق (OCR Path)
     try:
-        client = Groq(api_key=api_key)
-        prompt = f"""
-        Act as a Senior Financial Accountant. Extract data from this invoice text into JSON.
-        Required Fields:
-        - vendor_name (Official Company Name)
-        - invoice_date (YYYY-MM-DD format only)
-        - invoice_number
-        - currency (USD, EUR, GBP)
-        - total_amount (Float number, no symbols)
-        - line_items (Array of objects: description, quantity, unit_price, total)
-        
-        Text content: {text[:8000]}
-        
-        RETURN ONLY RAW JSON. NO MARKDOWN.
-        """
-        completion = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[{"role": "user", "content": prompt}],
-            response_format={"type": "json_object"},
-            temperature=0.1
-        )
-        return json.loads(completion.choices[0].message.content)
+        reader = load_ocr()
+        # نکته کلیدی: پاس دادن poppler_path داینامیک
+        images = convert_from_bytes(file_bytes, poppler_path=poppler_path)
+        full_text = ""
+        for img in images:
+            img_np = np.array(img)
+            result = reader.readtext(img_np, detail=0)
+            full_text += " ".join(result) + "\n"
+        return full_text, "🔍 OCR Scan (Deep)"
     except Exception as e:
-        return {"error": str(e)}
+        return "", f"Error: {str(e)}"
 
 def validate_financials(data):
     """بررسی اختلاف حساب در ارقام"""
